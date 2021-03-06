@@ -4,3 +4,6 @@ models
 __pycache__
 *.pyc
 .vscode
+venv
+/outputs/*.log
+/dataset/.~lock.btc.ods#
