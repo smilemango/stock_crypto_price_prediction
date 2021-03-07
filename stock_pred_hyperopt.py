@@ -19,6 +19,7 @@ import os
 import sys
 import time
 import pandas as pd
+from hyperopt.mongoexp import MongoTrials
 from tqdm._tqdm_notebook import tqdm_notebook as tqdm
 import pickle
 from keras.models import Sequential
@@ -38,6 +39,7 @@ from sklearn.metrics import accuracy_score, mean_squared_error
 
 import logging
 import itertools as it
+import os
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 logging.getLogger("tensorflow").setLevel(logging.ERROR)
@@ -47,8 +49,8 @@ from keras import backend as K
 print("checking if GPU available", K.tensorflow_backend._get_available_gpus())
 
 print("current path", os.getcwd())
-INPUT_PATH = './'
-OUTPUT_PATH = './outputs/'
+INPUT_PATH = os.path.dirname(os.path.abspath(__file__))
+OUTPUT_PATH = os.path.dirname(os.path.abspath(__file__)) + '/outputs/'
 LOG_PATH = OUTPUT_PATH
 LOG_FILE_NAME_PREFIX = "stock_pred_lstm_"
 LOG_FILE_NAME_SUFFIX = ".log"
@@ -130,7 +132,7 @@ class LogMetrics(Callback):
         self.param = param
         self.self_params = search_params
         self.comb_no = comb_no
-        
+
     def on_epoch_end(self, epoch, logs):
         for i, key in enumerate(self.self_params.keys()):
             logs[key] = self.param[key]
@@ -173,12 +175,12 @@ search_space = {
     'lstm1_dropouts':hp.uniform('dos_lstm1',0,1),
     'lstm_layers': hp.choice('num_layers_lstm',[
         {
-            'layers':'one', 
+            'layers':'one',
         },
         {
             'layers':'two',
             'lstm2_nodes':hp.choice('units_lstm2', [20,30,40,50]),
-            'lstm2_dropouts':hp.uniform('dos_lstm2',0,1)  
+            'lstm2_dropouts':hp.uniform('dos_lstm2',0,1)
         }
         ]),
     'dense_layers': hp.choice('num_layers_dense',[
@@ -205,7 +207,7 @@ def create_model_hypopt(params):
     # (batch_size, timesteps, data_dim)
     lstm_model.add(LSTM(params["lstm1_nodes"], batch_input_shape=(batch_size, time_steps, x_train_ts.shape[2]), dropout=params["lstm1_dropouts"],
                         recurrent_dropout=params["lstm1_dropouts"], stateful=True, return_sequences=True,
-                        kernel_initializer='random_uniform'))  
+                        kernel_initializer='random_uniform'))
     # ,return_sequences=True #LSTM params => dropout=0.2, recurrent_dropout=0.2
     if params["lstm_layers"]["layers"] == "two":
         lstm_model.add(LSTM(params["lstm_layers"]["lstm2_nodes"], dropout=params["lstm_layers"]["lstm2_dropouts"]))
@@ -214,7 +216,7 @@ def create_model_hypopt(params):
 
     if params["dense_layers"]["layers"] == 'two':
         lstm_model.add(Dense(params["dense_layers"]["dense2_nodes"], activation='relu'))
-    
+
     lstm_model.add(Dense(1, activation='sigmoid'))
 
     lr = params["lr"]
@@ -231,12 +233,15 @@ def create_model_hypopt(params):
     # for key in history.history.keys():
     #     print(key, "--",history.history[key])
     # get the highest validation accuracy of the training epochs
-    val_error = np.amin(history.history['val_loss']) 
+    val_error = np.amin(history.history['val_loss'])
     print('Best validation error of epoch:', val_error)
-    return {'loss': val_error, 'status': STATUS_OK, 'model': lstm_model} # if accuracy use '-' sign
-    
+    result = {'loss': val_error, 'status': STATUS_OK, 'model': pickle.dumps(lstm_model)}
+    print(f'>>>>>> result type = {type(result)}')
+    return result # if accuracy use '-' sign
 
-trials = Trials()
+
+#trials = Trials()
+trials = MongoTrials('mongo://localhost:27017/hyperopt_db/jobs', exp_key='exp4')
 best = fmin(create_model_hypopt,
     space=search_space,
     algo=tpe.suggest,
