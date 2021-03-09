@@ -11,11 +11,11 @@
 """
 Sample python script to show how to use hyperopt for hyperparameter tuning
 """
-
+import os
+#os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"   # see issue #152
+#os.environ["CUDA_VISIBLE_DEVICES"] = ""
 from hyperopt import Trials, STATUS_OK, tpe, fmin, hp
 import numpy as np
-import pandas as pd
-import os
 import sys
 import time
 import pandas as pd
@@ -24,21 +24,14 @@ from tqdm._tqdm_notebook import tqdm_notebook as tqdm
 import pickle
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Flatten
-from keras.layers import Embedding
 from keras.layers import LSTM
-import keras
 from keras.callbacks import Callback
 from keras import optimizers
-from keras.wrappers.scikit_learn import KerasClassifier
 from keras.callbacks import CSVLogger
-from sklearn.model_selection import GridSearchCV
-# import psutil
 from sklearn.preprocessing import MinMaxScaler, normalize
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, mean_squared_error
 
 import logging
-import itertools as it
 import os
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -241,13 +234,14 @@ def create_model_hypopt(params):
 
 
 #trials = Trials()
-trials = MongoTrials('mongo://localhost:27017/hyperopt_db/jobs', exp_key='exp4')
+trials = MongoTrials('mongo://localhost:27017/hyperopt_db/jobs', exp_key='exp1')
 best = fmin(create_model_hypopt,
     space=search_space,
     algo=tpe.suggest,
     max_evals=2000,
     trials=trials)
-
+print(best)
+print(f'tpe:{type(best)}')
 pickle.dump(best, open(os.path.join(OUTPUT_PATH,"hyperopt_res"),"wb"))
 
 print(best)
